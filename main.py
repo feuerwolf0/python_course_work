@@ -27,7 +27,7 @@ class VK:
         response = requests.get(self.BASE_URL+method,params)
         return response.json()
 
-    #Функция получает json всех изображений
+    #Функция возвращает список всех изображений
     def get_user_pics(self):
         print('Получаю все фотографии профиля {} {}'.format(self.first_name, self.last_name))
         method = 'photos.get'
@@ -43,19 +43,55 @@ class VK:
         }
         response = requests.get(self.BASE_URL+method, params)
         print('У пользователя {} {} {} фото'.format(self.first_name, self.last_name, response.json()['response']['count']))
-        return response.json()
+        return response.json()['response']['items']
     
+    # Функция возвращает список id всех альбомы пользователя
+    def get_all_ids_albums(self):
+        print('Получаю список всех альбомов {} {}'.format(self.first_name, self.last_name))
+        method = 'photos.getAlbums'
+        params = {
+            'access_token': self.token,
+            'v': self.v,
+            'owner_id' : self.owner_id,
+            'photo_sizes': 1
+        }
+        r = requests.get(url=self.BASE_URL+method, params=params)
+        if not 'error' in r.json():
+            print(f"Найдено {r.json()['response']['count']} альбомов")
+        else:
+            print('Ошибка. Возможно у пользователя нет альбомов или они закрыты')
+            return []
+        return [item['id'] for item in r.json()['response']['items']]
+    
+    # Функция возвращает список всех изображений из всех альбомов
+    def get_all_pics_from_albums(self):
+        albums = self.get_all_ids_albums()
+        if not albums:
+            return []
+        method = 'photos.get'
+        params = {
+            'access_token': self.token,
+            'v': self.v,
+            'owner_id' : self.owner_id,
+            'album_id': '{}'.format(*albums),
+            'rev': 1,
+            'extended': 1,
+            'count': 1000,
+            'photo_sizes': 1
+        }
+        r = requests.get(url=self.BASE_URL+method, params=params)
+        print(f"Найдено {r.json()['response']['count']} фото в альбомах")
+        return r.json()['response']['items']
+    
+
     # Функция загружает все изображения в папку files
-    def download_all_pics(self, path, nums=5):
+    def download_all_pics(self, path,list_pics, nums=5):
         headers = {
            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36',
            'accept-encoding': 'gzip, deflate, br',
            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
         }
-        # Получаю json со всеми изображениями
-        pics_json = self.get_user_pics()
         # Цикл по всем изображениям
-        list_pics = pics_json['response']['items']
         json_pics = []
         for pic in tqdm(list_pics[:nums], ncols=80, ascii=True, desc='Загрузка изображений'):
             # Название изображения (кол-во лайков)
@@ -79,8 +115,9 @@ class VK:
             pic_info = {"file_name": f"{pic_name}.png",\
             "size": f"{pic['sizes'][-1]['height']}x{pic['sizes'][-1]['width']}"}
             json_pics.append(pic_info)
-        with open('info.json', 'wt', encoding='UTF-8') as f:
-            json.dump(json_pics,f, indent=3)
+        # Сохраняю info.json
+        with open('info.json', 'at') as f:
+            json.dump(json_pics,f, indent=3, ensure_ascii=True)
 
 class YaUploader:
     def __init__(self,token,foldername):
@@ -137,6 +174,9 @@ class YaUploader:
         return r.json()['href']
 
 def main():
+    # Удаляю старый info.json
+    if os.path.isfile('info.json'):
+        os.remove('info.json')
     # получаю токены из файла mytokens.py
     token_vk = TOKEN_VK
     token_ya = TOKEN_YA
@@ -146,10 +186,14 @@ def main():
     path_to_pics = 'images'
     # Количество изображений для скачивания
     num_pics = 10
+    # Количетсво изображений для скачивания из альбомов
+    num_pics_from_album = 5
     # создаю объект класса vk
     vk = VK(token_vk, user_id)
-    # скачиваю все изображения
-    vk.download_all_pics(path_to_pics, num_pics)
+    # Скачиваю все изображения профиля
+    vk.download_all_pics(path_to_pics,vk.get_user_pics(),num_pics)
+    # Скачиваю все изображения из альбомов
+    vk.download_all_pics(path_to_pics,vk.get_all_pics_from_albums(),num_pics_from_album)
     # создаю объект класса YaUploader
     ya = YaUploader(token_ya,user_id)
     # загружаю все изображения на яндекс диск
