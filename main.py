@@ -161,9 +161,6 @@ class YaUploader:
                     print('\nОшибка загрузки файла: {}'.format(r.status_code))
                     return f'Ошибка {r.status_code}'
         print(f'Файлы в количестве {len(files)} успешно загружены в папку {self.foldername}')
-        # Удаляю локальную папку images
-        shutil.rmtree(path)
-        print(f'Локальная папка {path} удалена со всеми вложенными файлами')
 
     # Функция получает ссылку для загрузки изображения
     def get_link_upload(self, filename):
@@ -259,7 +256,9 @@ def main():
     gd = GoogleUploader(user_id)
     # Загружаю все файлы из локальной папки на Google Drive
     gd.upload(path_to_pics)
-
+    # Удаляю локальную папку images
+    shutil.rmtree(path_to_pics)
+    print(f'Локальная папка {path_to_pics} удалена со всеми вложенными файлами')
 
 if __name__ == '__main__':
     main()
