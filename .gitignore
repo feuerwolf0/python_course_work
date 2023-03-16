@@ -3,3 +3,4 @@ mytokens.py
 __pycache__
 images/*
 out.json
+client_secrets.json

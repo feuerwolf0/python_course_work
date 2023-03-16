@@ -4,6 +4,8 @@ import os.path, os
 from tqdm import tqdm
 import shutil
 import json
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
 
 class VK:
     def __init__(self, access_token, user_id, v='5.131'):
@@ -173,6 +175,58 @@ class YaUploader:
         r = requests.get(url=self.BASE_URL+method, headers=self.headers, params=params)
         return r.json()['href']
 
+
+class GoogleUploader:
+    def __init__(self,foldername):
+        self.gauth = GoogleAuth()
+        self.gauth.LocalWebserverAuth()
+        self.drive = GoogleDrive(self.gauth)
+        self.foldername = foldername
+        # Получаю словарь вида filename: id
+        self.file_dict = self.get_file_list()
+    
+    # Функция создает папку в google drive
+    def create_folder(self):
+        if not self.foldername in self.file_dict:
+            file_metadata = {
+                'title': self.foldername,
+                'mimeType': 'application/vnd.google-apps.folder'
+            }
+            folder = self.drive.CreateFile(file_metadata)
+            folder.Upload()
+        else:
+            print('Папка {} уже создана на gDrive'.format(self.foldername))
+
+    # Функция возвращает словарь вида filename: id файлов на Google Drive (нужна для исключения дублирования папок)
+    def get_file_list(self):
+        file_list = self.drive.ListFile({'q': "'root' in parents and trashed=false"}).GetList()
+        file_dict = {}
+        for file1 in file_list:
+            file_dict[file1['title']] = file1['id']
+        return file_dict
+    
+    # Функция загружает изображения на Google Drive
+    def upload(self,path):
+        # Создаю папку на Google Drive
+        self.create_folder()
+        # Получаю словарь файлов в папке, куда будут загружаться фото
+        file_list = self.drive.ListFile({'q': "'{}' in parents and trashed=false".format(self.file_dict[self.foldername])}).GetList()
+        titles = []
+        # создаю список файлов лежащих в папке куда будут загружаться фото
+        [titles.append(file['title']) for file in file_list]
+        print('Начинаю загружать файлы на Google Drive')
+        # Загружаю все фото из локальной папки на Google Drive
+        for filename in tqdm(os.listdir(path), ncols=80, ascii=True, desc='Загрузка изображений'):
+            # Если файл уже есть в папке на gdrive - пропускаю его
+            if not filename in titles:
+                my_file = self.drive.CreateFile({'title': f'{filename}','parents': [{'id': self.file_dict[self.foldername]}]})
+                my_file.SetContentFile(os.path.join(path,filename))
+                my_file.Upload()
+            else:
+                print(f'Файл {filename} уже есть на Google Drive')
+        print('Файлы успешно загружены на Google Drive')
+
+
 def main():
     # Удаляю старый info.json
     if os.path.isfile('info.json'):
@@ -198,6 +252,13 @@ def main():
     ya = YaUploader(token_ya,user_id)
     # загружаю все изображения на яндекс диск
     ya.upload(path_to_pics)
+
+    # Для работы необходим файл client_secrets.json созданный на https://console.cloud.google.com/apis/dashboard
+    # для библиотеки pydrive https://pythonhosted.org/PyDrive/quickstart.html
+    # создаю объект класса GoogleUploader
+    gd = GoogleUploader(user_id)
+    # Загружаю все файлы из локальной папки на Google Drive
+    gd.upload(path_to_pics)
 
 
 if __name__ == '__main__':
