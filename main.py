@@ -103,19 +103,27 @@ class VK:
             # Если папки images нет - создаю ее
             if not os.path.isdir(path):
                 os.mkdir(path)
+            # Создаю флаг
+            flag = 0
             # Если файл с таким именем уже есть - добавляю дату в название файла
-            if os.path.isfile(f'/{path}/{pic_name}.png'):
-                with open(f'{path}/{pic_name}{pic["date"]}.txt', 'wb') as f_pic:
+            if os.path.isfile(f'{path}/{pic_name}.png'):
+                with open(f'{path}/{pic_name}_{pic["date"]}.png', 'wb') as f_pic:
                     r = requests.get(pic_url,headers)
                     f_pic.write(r.content)
+                flag = 1
             else:
                 with open(f'{path}/{pic_name}.png', 'wb') as f_pic:
                     r = requests.get(pic_url,headers)
                     f_pic.write(r.content)
             # Создаю json файл
             pic_info = {}
-            pic_info = {"file_name": f"{pic_name}.png",\
+            # Если файлу дописывалась дата в UNIX - дописываю ее название файла в json
+            if flag:
+                 pic_info = {"file_name": f"{pic_name}_{pic['date']}.png",\
             "size": f"{pic['sizes'][-1]['height']}x{pic['sizes'][-1]['width']}"}
+            else: 
+                pic_info = {"file_name": f"{pic_name}.png",\
+                "size": f"{pic['sizes'][-1]['height']}x{pic['sizes'][-1]['width']}"}
             json_pics.append(pic_info)
         # Сохраняю info.json
         with open('info.json', 'at') as f:
@@ -232,7 +240,7 @@ def main():
     token_vk = TOKEN_VK
     token_ya = TOKEN_YA
     # Id страницы пользователя
-    user_id = 'basta'
+    user_id = 'snbrnbeast'
     # Название для локальной папки с фотографиями
     path_to_pics = 'images'
     # Количество изображений для скачивания
